@@ -1,24 +1,25 @@
 import React, {useState, useEffect} from 'react';
+import { Route, Switch, Redirect, useHistory } from 'react-router-dom';
 import Header from './Header';
-import Main from './Main';
-import PopupWithForm from './PopupWithForm';
-import EditProfilePopup from './EditProfilePopup';
-import EditAvatarPopup from './EditAvatarPopup';
-import AddPlacePopup from './AddPlacePopup';
-import ImagePopup from './ImagePopup';
-import Footer from './Footer';
+import ProtectedRoute from './ProtectedRoute';
+import CardList from './CardList';
 import api from '../utils/api';
+import auth from '../utils/auth';
 import {CurrentUserContext} from '../contexts/CurrentUserContext';
+import Login from './Login';
+import Register from './Register';  
+import InfoTooltip from './InfoTooltip';
 
 function App() {
-  const [isEditAvatarPopupOpen, setIsEditAvatarPopupOpen] = useState(false);
-  const [isEditProfilePopupOpen, setIsEditProfilePopupOpen] = useState(false);
-  const [isAddPlacePopupOpen, setIsAddPlacePopupOpen] = useState(false);
-  const [selectedCard, setSelectedCard] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
-  const [cards, setCards] = useState([]);
+  const [infoTooltipState, setInfoTooltipState] = useState(null);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [email, setEmail] = useState('');
+  const history = useHistory();
 
   useEffect(() => {
+    checkUser({token: localStorage.getItem('token')});
+
     api.getOwnerInfo()
     .then((owner) => {
       setCurrentUser(owner);
@@ -26,109 +27,79 @@ function App() {
     .catch((err) => {
       console.log(err);
     });
-    
-    api.getCards()
-    .then((cards) => {
-      setCards(cards);
-    })
-    .catch((err) => {
-      console.log(err);
-    });
   }, []);
 
-  function handleEditAvatarClick() {
-    setIsEditAvatarPopupOpen(true);
+  function processRegister({email, password}) {
+    auth.signUp({email, password})
+    .then((res) => {
+      setInfoTooltipState({success: true, text: 'Вы успешно зарегистрировались!'});
+
+      history.push('/sign-in');
+    })
+    .catch((statusCode) => {
+      setInfoTooltipState({success: false, text: `${statusCode == 400 ? 'Некорректно заполнено одно из полей!' : 'Что-то пошло не так!'} Попробуйте ещё раз.`});
+    });
   }
 
-  function handleEditProfileClick() {
-    setIsEditProfilePopupOpen(true);
+  function processLogin({email, password}) {
+    auth.signIn({email, password})
+    .then((res) => {
+      localStorage.setItem('token', res.token); 
+      setLoggedIn(true);
+      setEmail(email);
+
+      history.push('/cards');
+    })
+    .catch((statusCode) => {
+      setInfoTooltipState({success: false, text: `${statusCode == 400 ? 'Не передано одно из полей!' : statusCode == 401 ? 'Пользователь с email не найден!' : 'Что-то пошло не так!'} Попробуйте ещё раз.`});
+    });
   }
 
-  function handleAddPlaceClick() {
-    setIsAddPlacePopupOpen(true);
+  function checkUser({token}) {
+    auth.checkUser({token})
+    .then((res) => {
+      setLoggedIn(true);
+      setEmail(res.data.email);
+
+      history.push('/cards');
+    })
+    .catch((statusCode) => {
+      logout();
+    });
   }
 
-  function closeAllPopups() {
-    setIsEditAvatarPopupOpen(false);
-    setIsEditProfilePopupOpen(false);
-    setIsAddPlacePopupOpen(false);
-    setSelectedCard(null);
+  function logout() {
+    setLoggedIn(false);
+    setEmail('');
+    localStorage.removeItem('token');
   }
 
-  function handleCardClick(card) {
-    setSelectedCard(card);
-  }
-
-  function handleUpdateUser({name, about}) {
-    api.setOwnerInfo(name, about)
-      .then((userData) => {
-        setCurrentUser(userData);
-        closeAllPopups();
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-  }
-
-  function handleUpdateAvatar({avatar}) {
-    api.setAvatar(avatar)
-      .then((userData) => {
-        setCurrentUser(userData);
-        closeAllPopups();
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-  }
-
-  function handleCardLike(card) {
-    // Снова проверяем, есть ли уже лайк на этой карточке
-    const isLiked = card.likes.some(i => i._id === currentUser._id);
-    
-    // Отправляем запрос в API и получаем обновлённые данные карточки
-    api.changeLikeCardStatus(card._id, !isLiked)
-      .then((newCard) => {
-          setCards((state) => state.map((c) => c._id === card._id ? newCard : c));
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-  }
-
-  function handleCardDelete(cardId) {
-    console.log(cardId);
-    api.deleteCard(cardId)
-      .then(() => {
-        setCards(cards => cards.filter(c => c.owner._id !== currentUser._id));
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-  }
-
-  function handleAddPlaceSubmit({name, link}) {
-    api.setCard(name, link)
-      .then((newCard) => {
-        setCards([newCard, ...cards]);
-        closeAllPopups();
-      })
-      .catch((err) => {
-        console.log(err);
-      });
+  function closeInfoTooltip() {
+    setInfoTooltipState(null);
   }
 
   return (
     <CurrentUserContext.Provider value={currentUser}>
       <div className="page">
-        <Header />
-        <Main onEditAvatar={handleEditAvatarClick} onEditProfile={handleEditProfileClick} onAddPlace={handleAddPlaceClick} onCardClick={handleCardClick} onCardLike={handleCardLike} onCardDelete={handleCardDelete} cards={cards}/>
-        <EditProfilePopup isOpen={isEditProfilePopupOpen} onClose={closeAllPopups} onUpdateUser={handleUpdateUser}/>
-        <EditAvatarPopup isOpen={isEditAvatarPopupOpen} onClose={closeAllPopups} onUpdateAvatar={handleUpdateAvatar}/>
-        <AddPlacePopup isOpen={isAddPlacePopupOpen} onClose={closeAllPopups} onAddPlace={handleAddPlaceSubmit}/>
-        <PopupWithForm title="Вы уверены?" name="delete" buttonText="Да" />
-        <ImagePopup onClose={closeAllPopups} card={selectedCard}/>
-
-        <Footer />
+        <Header email={email} onLogout={logout}/>
+        <Switch>
+          <ProtectedRoute
+            path="/cards"
+            loggedIn={loggedIn}
+            component={CardList}
+            setCurrentUser={setCurrentUser}
+          />
+          <Route exact path="/sign-in">
+            {loggedIn ? <Redirect to="/cards" /> : <Login onLogin={processLogin}/>}
+          </Route>
+          <Route exact path="/sign-up">
+            {loggedIn ? <Redirect to="/cards" /> : <Register onRegister={processRegister}/>}
+          </Route>
+          <Route>
+            {loggedIn ? <Redirect to="/cards" /> : <Redirect to="/sign-in" />}
+          </Route>
+        </Switch>
+        <InfoTooltip infoTooltipState={infoTooltipState} onClose={closeInfoTooltip}/>
       </div>
     </CurrentUserContext.Provider>
   );
