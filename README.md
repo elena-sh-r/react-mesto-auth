@@ -27,4 +27,4 @@
 ------ 
 
 ## Ссылка на проект
-https://elena-sh-r.github.io/react-mesto-auth
+https://github.com/elena-sh-r/react-mesto-auth
