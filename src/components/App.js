@@ -37,7 +37,7 @@ function App() {
       history.push('/sign-in');
     })
     .catch((statusCode) => {
-      setInfoTooltipState({success: false, text: `${statusCode == 400 ? 'Некорректно заполнено одно из полей!' : 'Что-то пошло не так!'} Попробуйте ещё раз.`});
+      setInfoTooltipState({success: false, text: `${statusCode === 400 ? 'Некорректно заполнено одно из полей!' : 'Что-то пошло не так!'} Попробуйте ещё раз.`});
     });
   }
 
@@ -51,11 +51,15 @@ function App() {
       history.push('/cards');
     })
     .catch((statusCode) => {
-      setInfoTooltipState({success: false, text: `${statusCode == 400 ? 'Не передано одно из полей!' : statusCode == 401 ? 'Пользователь с email не найден!' : 'Что-то пошло не так!'} Попробуйте ещё раз.`});
+      setInfoTooltipState({success: false, text: `${statusCode === 400 ? 'Не передано одно из полей!' : statusCode === 401 ? 'Пользователь с email не найден!' : 'Что-то пошло не так!'} Попробуйте ещё раз.`});
     });
   }
 
   function checkUser({token}) {
+    if (!token) {
+      return;
+    }
+
     auth.checkUser({token})
     .then((res) => {
       setLoggedIn(true);
@@ -84,7 +88,7 @@ function App() {
         <Header email={email} onLogout={logout}/>
         <Switch>
           <ProtectedRoute
-            path="/cards"
+            exact path="/cards"
             loggedIn={loggedIn}
             component={CardList}
             setCurrentUser={setCurrentUser}
